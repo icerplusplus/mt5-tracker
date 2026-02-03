@@ -3,15 +3,17 @@
 import { useTradingStore } from '@/lib/store/trading-store';
 import { TrendingUp, TrendingDown, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { getSocket } from '@/lib/websocket/client';
+import { getPusherClient } from '@/lib/pusher/client';
 
 export default function CompactPositions() {
   const { positions, setPositions } = useTradingStore();
   const [closing, setClosing] = useState<number | null>(null);
 
   useEffect(() => {
-    const socket = getSocket();
-    socket.on('positions:update', (data: any[]) => {
+    const pusher = getPusherClient();
+    const channel = pusher.subscribe('mt5-channel');
+    
+    channel.bind('positions-update', (data: any[]) => {
       setPositions(data);
     });
 
@@ -19,7 +21,8 @@ export default function CompactPositions() {
     loadPositions();
 
     return () => {
-      socket.off('positions:update');
+      channel.unbind('positions-update');
+      pusher.unsubscribe('mt5-channel');
     };
   }, [setPositions]);
 

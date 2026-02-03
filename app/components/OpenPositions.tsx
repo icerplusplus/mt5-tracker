@@ -3,7 +3,7 @@
 import { useTradingStore } from '@/lib/store/trading-store';
 import { TrendingUp, TrendingDown, X, Wifi, WifiOff } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
-import { getSocket } from '@/lib/websocket/client';
+import { getPusherClient } from '@/lib/pusher/client';
 import { createChart, IChartApi, ISeriesApi, CandlestickData, Time } from 'lightweight-charts';
 
 interface ChartBar {
@@ -48,34 +48,39 @@ export default function OpenPositions() {
     }
   }, [positions, selectedSymbol]);
 
-  // Setup WebSocket connection
+  // Setup Pusher connection
   useEffect(() => {
-    const socket = getSocket();
+    const pusher = getPusherClient();
+    const channel = pusher.subscribe('mt5-channel');
 
     // Connection status
-    socket.on('connect', () => {
-      console.log('✅ WebSocket connected');
+    pusher.connection.bind('connected', () => {
+      console.log('✅ Pusher connected');
       setConnected(true);
     });
 
-    socket.on('disconnect', () => {
-      console.log('❌ WebSocket disconnected');
+    pusher.connection.bind('disconnected', () => {
+      console.log('❌ Pusher disconnected');
       setConnected(false);
     });
 
     // Listen for positions updates
-    socket.on('positions:update', (data: any[]) => {
-      console.log('📊 Received positions via WebSocket:', data.length);
+    channel.bind('positions-update', (data: any[]) => {
+      console.log('📊 Received positions via Pusher:', data.length);
       setPositions(data);
     });
+
+    // Set initial state
+    setConnected(pusher.connection.state === 'connected');
 
     // Initial load
     loadInitialPositions();
 
     return () => {
-      socket.off('connect');
-      socket.off('disconnect');
-      socket.off('positions:update');
+      pusher.connection.unbind('connected');
+      pusher.connection.unbind('disconnected');
+      channel.unbind('positions-update');
+      pusher.unsubscribe('mt5-channel');
     };
   }, [setPositions]);
 

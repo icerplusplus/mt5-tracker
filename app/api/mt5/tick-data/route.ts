@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { broadcastTickData } from '@/lib/websocket/server';
+import { broadcastTickData } from '@/lib/pusher/server';
 
 export async function POST(request: NextRequest) {
   try {

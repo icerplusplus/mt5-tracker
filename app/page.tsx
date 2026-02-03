@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useTradingStore } from '@/lib/store/trading-store';
 import { supabase } from '@/lib/supabase/client';
+import { getPusherClient } from '@/lib/pusher/client';
 import TradingLayout from './components/TradingLayout';
 import TradingHeader from './components/TradingHeader';
 import CompactPositions from './components/CompactPositions';
@@ -23,8 +24,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadInitialData();
-    // Removed Supabase Realtime subscriptions - using WebSocket instead
-    // WebSocket already broadcasts realtime updates from EA Bot
+    setupPusherSubscriptions();
   }, []);
 
   async function loadInitialData() {
@@ -49,7 +49,7 @@ export default function Dashboard() {
         } else {
           // Bot not connected yet, wait for bot status update
           console.log('Waiting for EA Bot to connect...');
-          // Keep loading state, will be updated by realtime subscription
+          // Keep loading state, will be updated by Pusher subscription
         }
       } else {
         // No bot status yet, wait for bot to connect
@@ -83,15 +83,50 @@ export default function Dashboard() {
     }
   }
 
-  // REMOVED: setupRealtimeSubscriptions()
-  // Reason: WebSocket already provides realtime updates
-  // Supabase Realtime was causing unnecessary polling and re-fetching
-  // Every time EA Bot posts data (0.5s), it triggers postgres_changes
-  // which causes fetch() calls, leading to component reloads
-  //
-  // WebSocket flow (current):
-  // EA Bot → POST /api/mt5/positions → broadcastPositions() → WebSocket clients
-  // Components listen to WebSocket events directly (no polling needed)
+  function setupPusherSubscriptions() {
+    const pusher = getPusherClient();
+    const channel = pusher.subscribe('mt5-channel');
+
+    // Listen to positions updates
+    channel.bind('positions-update', (data: any) => {
+      console.log('📡 Received positions update:', data?.length || 0);
+      setPositions(data || []);
+    });
+
+    // Listen to account updates
+    channel.bind('account-update', (data: any) => {
+      console.log('📡 Received account update');
+      setAccountInfo(data);
+    });
+
+    // Listen to bot status updates
+    channel.bind('bot-status', (data: any) => {
+      console.log('📡 Received bot status:', data?.is_running ? 'RUNNING' : 'STOPPED');
+      setBotStatus(data);
+      
+      // If bot just connected and we're still loading, load data
+      if (loading && data.account_number) {
+        const suffix = data.account_suffix || 'm';
+        setAccountSuffix(suffix);
+        setSelectedSymbol('BTCUSD' + suffix);
+        loadOtherData();
+        setLoading(false);
+      }
+    });
+
+    // Listen to new trades
+    channel.bind('trade-new', (data: any) => {
+      console.log('📡 Received new trade:', data?.type, data?.symbol);
+      // Reload trades
+      fetch('/api/mt5/trades?limit=20')
+        .then(res => res.json())
+        .then(tradesData => {
+          if (tradesData.success) setRecentTrades(tradesData.data || []);
+        });
+    });
+
+    console.log('📡 Pusher subscriptions setup complete');
+  }
 
   if (loading) {
     return (

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createChart, IChartApi, ISeriesApi, CandlestickData, Time, IPriceLine } from 'lightweight-charts';
-import { getSocket } from '@/lib/websocket/client';
+import { getPusherClient } from '@/lib/pusher/client';
 import { useTradingStore } from '@/lib/store/trading-store';
 
 interface ChartBar {
@@ -202,8 +202,9 @@ export default function TradingChart({ symbol: propSymbol }: TradingChartProps) 
     // Load initial data
     loadChartData();
 
-    // Setup WebSocket for real-time chart updates
-    const socket = getSocket();
+    // Setup Pusher for real-time chart updates
+    const pusher = getPusherClient();
+    const channel = pusher.subscribe('mt5-channel');
     
     const handleChartUpdate = (data: any) => {
       if (data.symbol === symbol && data.timeframe === timeframe) {
@@ -219,13 +220,14 @@ export default function TradingChart({ symbol: propSymbol }: TradingChartProps) 
       }
     };
     
-    socket.on('chart:update', handleChartUpdate);
-    socket.on('tick:update', handleTickUpdate);
+    channel.bind('chart-update', handleChartUpdate);
+    channel.bind('tick-update', handleTickUpdate);
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      socket.off('chart:update', handleChartUpdate);
-      socket.off('tick:update', handleTickUpdate);
+      channel.unbind('chart-update', handleChartUpdate);
+      channel.unbind('tick-update', handleTickUpdate);
+      pusher.unsubscribe('mt5-channel');
       chart.remove();
     };
   }, [symbol, timeframe]);

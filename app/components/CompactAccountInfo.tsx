@@ -2,14 +2,16 @@
 
 import { useTradingStore } from '@/lib/store/trading-store';
 import { useEffect } from 'react';
-import { getSocket } from '@/lib/websocket/client';
+import { getPusherClient } from '@/lib/pusher/client';
 
 export default function CompactAccountInfo() {
   const { accountInfo, setAccountInfo } = useTradingStore();
 
   useEffect(() => {
-    const socket = getSocket();
-    socket.on('account:update', (data: any) => {
+    const pusher = getPusherClient();
+    const channel = pusher.subscribe('mt5-channel');
+    
+    channel.bind('account-update', (data: any) => {
       setAccountInfo(data);
     });
 
@@ -17,7 +19,8 @@ export default function CompactAccountInfo() {
     loadAccountInfo();
 
     return () => {
-      socket.off('account:update');
+      channel.unbind('account-update');
+      pusher.unsubscribe('mt5-channel');
     };
   }, [setAccountInfo]);
 

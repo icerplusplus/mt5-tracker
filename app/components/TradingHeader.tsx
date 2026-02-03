@@ -3,7 +3,7 @@
 import { useTradingStore } from '@/lib/store/trading-store';
 import { TrendingUp, TrendingDown, Wifi, WifiOff, Search } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { getSocket } from '@/lib/websocket/client';
+import { getPusherClient } from '@/lib/pusher/client';
 
 interface TradingHeaderProps {
   onOpenSymbolSearch: () => void;
@@ -14,13 +14,17 @@ export default function TradingHeader({ onOpenSymbolSearch }: TradingHeaderProps
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    const socket = getSocket();
-    socket.on('connect', () => setConnected(true));
-    socket.on('disconnect', () => setConnected(false));
+    const pusher = getPusherClient();
+    
+    pusher.connection.bind('connected', () => setConnected(true));
+    pusher.connection.bind('disconnected', () => setConnected(false));
+    
+    // Set initial state
+    setConnected(pusher.connection.state === 'connected');
     
     return () => {
-      socket.off('connect');
-      socket.off('disconnect');
+      pusher.connection.unbind('connected');
+      pusher.connection.unbind('disconnected');
     };
   }, []);
 

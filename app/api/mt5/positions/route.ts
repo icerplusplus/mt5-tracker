@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
-import { broadcastPositions } from '@/lib/websocket/server';
+import { broadcastPositions } from '@/lib/pusher/server';
 
 export async function POST(request: NextRequest) {
   try {

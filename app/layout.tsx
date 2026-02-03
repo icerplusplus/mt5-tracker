@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import WebSocketDebug from "./components/WebSocketDebug";
 
 export const metadata: Metadata = {
   title: "MT5 Trading Dashboard",
@@ -16,7 +15,6 @@ export default function RootLayout({
     <html lang="vi">
       <body className="font-sans antialiased">
         {children}
-        <WebSocketDebug />
       </body>
     </html>
   );

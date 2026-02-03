@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
-import { broadcastAccountInfo } from '@/lib/websocket/server';
+import { broadcastAccountInfo } from '@/lib/pusher/server';
 
 export async function POST(request: NextRequest) {
   try {
