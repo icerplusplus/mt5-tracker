@@ -45,7 +45,17 @@ MT5_API_KEY=your_api_key
 
 ### 3. Run Server
 
-**Development:**
+**Development (Simple - No PM2):**
+```bash
+node server.js
+```
+
+Or use the start script:
+```bash
+.\start-server.ps1  # Windows PowerShell
+```
+
+**Development (with auto-reload):**
 ```bash
 npm run dev
 ```
@@ -54,6 +64,8 @@ npm run dev
 ```bash
 npm run pm2:start
 ```
+
+**Note:** For VPS, you can run directly with `node server.js` without PM2. Just keep the terminal/SSH session open. Press `Ctrl+C` to stop.
 
 ## 📊 Server Endpoints
 
@@ -136,7 +148,37 @@ socket.on('trade:new', (trade) => {
 });
 ```
 
-## 🔧 PM2 Commands
+## 🔧 Server Management
+
+### Running Without PM2 (Simple)
+
+**Start server:**
+```powershell
+cd websocket-server
+node server.js
+```
+
+**Stop server:**
+- Press `Ctrl+C` in the terminal
+
+**Restart server:**
+- Press `Ctrl+C` to stop
+- Run `node server.js` again
+
+**View logs:**
+- Logs are displayed directly in the terminal
+
+**Pros:**
+- ✅ Simple and straightforward
+- ✅ Easy to debug (logs in real-time)
+- ✅ No additional dependencies
+
+**Cons:**
+- ❌ Server stops when terminal closes
+- ❌ No auto-restart on crash
+- ❌ Manual restart required
+
+### Running With PM2 (Production)
 
 ### Start server
 ```bash

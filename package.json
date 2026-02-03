@@ -11,6 +11,7 @@
     "test:db": "tsx scripts/test-supabase.ts",
     "test:connection": "tsx scripts/test-connection.ts",
     "test:websocket": "tsx scripts/test-websocket.ts",
+    "test:ws-connection": "tsx scripts/test-websocket-connection.ts",
     "test:all": "tsx scripts/check-env.ts && tsx scripts/test-supabase.ts",
     "vps:dev": "node vps-server.js",
     "vps:start": "pm2 start vps-server.js --name mt5-api",
