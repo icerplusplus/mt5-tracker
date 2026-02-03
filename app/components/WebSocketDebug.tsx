@@ -41,8 +41,8 @@ export default function WebSocketDebug() {
       setInfo(prev => ({
         ...prev,
         connected: true,
-        socketId: socket.id,
-        transport: socket.io.engine.transport.name,
+        socketId: socket.id || null,
+        transport: socket.io.engine.transport.name || null,
         lastConnected: new Date().toISOString(),
         reconnectAttempts: 0
       }));

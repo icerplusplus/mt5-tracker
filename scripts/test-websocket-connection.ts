@@ -43,7 +43,7 @@ socket.on('connect', () => {
   }, 1000);
 });
 
-socket.on('connect_error', (error) => {
+socket.on('connect_error', (error: any) => {
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.error('❌ CONNECTION FAILED!');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
