@@ -23,7 +23,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadInitialData();
-    setupRealtimeSubscriptions();
+    // Removed Supabase Realtime subscriptions - using WebSocket instead
+    // WebSocket already broadcasts realtime updates from EA Bot
   }, []);
 
   async function loadInitialData() {
@@ -82,78 +83,15 @@ export default function Dashboard() {
     }
   }
 
-  function setupRealtimeSubscriptions() {
-    // Subscribe to positions changes
-    const positionsChannel = supabase
-      .channel('open_positions_changes')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'open_positions' },
-        async () => {
-          const res = await fetch('/api/mt5/positions');
-          const data = await res.json();
-          if (data.success) setPositions(data.data || []);
-        }
-      )
-      .subscribe();
-
-    // Subscribe to account history changes
-    const accountChannel = supabase
-      .channel('account_history_changes')
-      .on('postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'account_history' },
-        async () => {
-          const res = await fetch('/api/mt5/account-info');
-          const data = await res.json();
-          if (data.success && data.data) setAccountInfo(data.data);
-        }
-      )
-      .subscribe();
-
-    // Subscribe to bot status changes
-    const botChannel = supabase
-      .channel('bot_status_changes')
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'bot_status' },
-        async () => {
-          const res = await fetch('/api/mt5/bot-status');
-          const data = await res.json();
-          if (data.success && data.data) {
-            setBotStatus(data.data);
-            
-            // If bot just connected and we're still loading
-            if (loading && data.data.account_number) {
-              const suffix = data.data.account_suffix || 'm';
-              setAccountSuffix(suffix);
-              setSelectedSymbol('BTCUSD' + suffix);
-              await loadOtherData();
-              setLoading(false);
-              console.log('EA Bot connected! Account type:', suffix === 'm' ? 'Dollar' : 'Cent');
-            }
-          }
-        }
-      )
-      .subscribe();
-
-    // Subscribe to trades changes
-    const tradesChannel = supabase
-      .channel('trades_changes')
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'trades' },
-        async () => {
-          const res = await fetch('/api/mt5/trades?limit=20');
-          const data = await res.json();
-          if (data.success) setRecentTrades(data.data || []);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(positionsChannel);
-      supabase.removeChannel(accountChannel);
-      supabase.removeChannel(botChannel);
-      supabase.removeChannel(tradesChannel);
-    };
-  }
+  // REMOVED: setupRealtimeSubscriptions()
+  // Reason: WebSocket already provides realtime updates
+  // Supabase Realtime was causing unnecessary polling and re-fetching
+  // Every time EA Bot posts data (0.5s), it triggers postgres_changes
+  // which causes fetch() calls, leading to component reloads
+  //
+  // WebSocket flow (current):
+  // EA Bot → POST /api/mt5/positions → broadcastPositions() → WebSocket clients
+  // Components listen to WebSocket events directly (no polling needed)
 
   if (loading) {
     return (

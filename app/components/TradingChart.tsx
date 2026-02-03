@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { createChart, IChartApi, ISeriesApi, CandlestickData, Time, IPriceLine } from 'lightweight-charts';
 import { getSocket } from '@/lib/websocket/client';
 import { useTradingStore } from '@/lib/store/trading-store';
@@ -63,24 +63,8 @@ export default function TradingChart({ symbol: propSymbol }: TradingChartProps) 
     }
   }, [propSymbol, symbol]);
 
-  // Load data when symbol changes
-  useEffect(() => {
-    if (chartRef.current && candlestickSeriesRef.current && volumeSeriesRef.current) {
-      loadChartData();
-      // Request chart data from EA Bot for the new symbol
-      requestChartDataFromBot();
-    }
-  }, [symbol]);
-
-  // Load data when timeframe changes
-  useEffect(() => {
-    if (chartRef.current && candlestickSeriesRef.current && volumeSeriesRef.current) {
-      loadChartData();
-      requestChartDataFromBot();
-    }
-  }, [timeframe]);
-
-  async function requestChartDataFromBot() {
+  // Memoize requestChartDataFromBot to prevent unnecessary re-renders
+  const requestChartDataFromBot = useCallback(async () => {
     try {
       await fetch('/api/commands/request-chart', {
         method: 'POST',
@@ -91,7 +75,62 @@ export default function TradingChart({ symbol: propSymbol }: TradingChartProps) 
     } catch (error) {
       console.error('Error requesting chart data:', error);
     }
-  }
+  }, [symbol, timeframe]);
+
+  // Memoize loadChartData to prevent unnecessary re-renders
+  const loadChartData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/mt5/chart-data?symbol=${symbol}&timeframe=${timeframe}&limit=200`);
+      const data = await res.json();
+
+      if (data.success && data.data.length > 0) {
+        const candlestickData: CandlestickData[] = data.data.map((bar: ChartBar) => ({
+          time: new Date(bar.timestamp).getTime() / 1000 as Time,
+          open: bar.open,
+          high: bar.high,
+          low: bar.low,
+          close: bar.close,
+        }));
+
+        const volumeData = data.data.map((bar: ChartBar) => ({
+          time: new Date(bar.timestamp).getTime() / 1000 as Time,
+          value: bar.volume,
+          color: bar.close >= bar.open ? '#10B98180' : '#EF444480',
+        }));
+
+        candlestickSeriesRef.current?.setData(candlestickData);
+        volumeSeriesRef.current?.setData(volumeData);
+
+        // Fit content
+        chartRef.current?.timeScale().fitContent();
+        
+        // Draw position lines after chart is loaded
+        drawPositionLines();
+      }
+    } catch (error) {
+      console.error('Error loading chart data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [symbol, timeframe]); // Add dependencies
+
+  // Load data when symbol changes
+  useEffect(() => {
+    if (chartRef.current && candlestickSeriesRef.current && volumeSeriesRef.current) {
+      loadChartData();
+      // Request chart data from EA Bot for the new symbol
+      requestChartDataFromBot();
+    }
+  }, [symbol, loadChartData, requestChartDataFromBot]); // Add function dependencies
+
+  // Load data when timeframe changes
+  useEffect(() => {
+    if (chartRef.current && candlestickSeriesRef.current && volumeSeriesRef.current) {
+      loadChartData();
+      requestChartDataFromBot();
+    }
+  }, [timeframe, loadChartData, requestChartDataFromBot]); // Add function dependencies
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -173,7 +212,9 @@ export default function TradingChart({ symbol: propSymbol }: TradingChartProps) 
     };
     
     const handleTickUpdate = (tick: any) => {
-      if (tick.symbol === symbol && tick.timeframe === timeframe) {
+      // Update candle for ANY tick of the current symbol (ignore timeframe mismatch)
+      // The chart will calculate the correct bar time based on current timeframe
+      if (tick.symbol === symbol) {
         updateCurrentCandle(tick);
       }
     };
@@ -188,43 +229,6 @@ export default function TradingChart({ symbol: propSymbol }: TradingChartProps) 
       chart.remove();
     };
   }, [symbol, timeframe]);
-
-  async function loadChartData() {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/mt5/chart-data?symbol=${symbol}&timeframe=${timeframe}&limit=200`);
-      const data = await res.json();
-
-      if (data.success && data.data.length > 0) {
-        const candlestickData: CandlestickData[] = data.data.map((bar: ChartBar) => ({
-          time: new Date(bar.timestamp).getTime() / 1000 as Time,
-          open: bar.open,
-          high: bar.high,
-          low: bar.low,
-          close: bar.close,
-        }));
-
-        const volumeData = data.data.map((bar: ChartBar) => ({
-          time: new Date(bar.timestamp).getTime() / 1000 as Time,
-          value: bar.volume,
-          color: bar.close >= bar.open ? '#10B98180' : '#EF444480',
-        }));
-
-        candlestickSeriesRef.current?.setData(candlestickData);
-        volumeSeriesRef.current?.setData(volumeData);
-
-        // Fit content
-        chartRef.current?.timeScale().fitContent();
-        
-        // Draw position lines after chart is loaded
-        drawPositionLines();
-      }
-    } catch (error) {
-      console.error('Error loading chart data:', error);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   function updateChart(bar: ChartBar) {
     const candlestickData: CandlestickData = {
@@ -254,6 +258,14 @@ export default function TradingChart({ symbol: propSymbol }: TradingChartProps) 
     const currentPrice = tick.price;
     const now = new Date(tick.timestamp || Date.now());
     const barTime = getBarTime(now, timeframe) / 1000 as Time;
+    
+    // Log tick updates for debugging (every 5 seconds to avoid spam)
+    const logInterval = 5000; // 5 seconds
+    const lastLogTime = (window as any).__lastTickLogTime || 0;
+    if (Date.now() - lastLogTime > logInterval) {
+      console.log(`🕐 Tick Update: ${tick.symbol} @ ${currentPrice.toFixed(5)} | Timeframe: ${timeframe} | Bar Time: ${new Date((barTime as number) * 1000).toLocaleTimeString()}`);
+      (window as any).__lastTickLogTime = Date.now();
+    }
     
     // Store current price for position lines
     currentPriceRef.current = currentPrice;
@@ -382,7 +394,8 @@ export default function TradingChart({ symbol: propSymbol }: TradingChartProps) 
     return Math.floor(time / tfMs) * tfMs;
   }
 
-  function drawPositionLines() {
+  // Memoize drawPositionLines to prevent unnecessary re-renders
+  const drawPositionLines = useCallback(() => {
     if (!candlestickSeriesRef.current) return;
 
     // Remove old price lines (except current price line which is managed separately)
@@ -441,14 +454,14 @@ export default function TradingChart({ symbol: propSymbol }: TradingChartProps) 
     if (currentPriceRef.current !== null) {
       updateCurrentPriceLine(currentPriceRef.current);
     }
-  }
+  }, [positions, symbol]); // Add dependencies
 
   // Update position lines when positions change
   useEffect(() => {
     if (candlestickSeriesRef.current) {
       drawPositionLines();
     }
-  }, [positions, symbol]);
+  }, [positions, symbol, drawPositionLines]); // Add drawPositionLines dependency
 
   return (
     <div className="bg-bg-secondary rounded-lg border border-border-primary h-full flex flex-col">

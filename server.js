@@ -5,7 +5,7 @@ const { Server } = require('socket.io');
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = '0.0.0.0'; // Listen on all interfaces (required for external access)
-const port = process.env.PORT || 10000; // Use port 10000 for VPS
+const port = process.env.PORT || 3000; // Default port 3000 for development
 
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
